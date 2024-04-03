@@ -38,7 +38,7 @@ import {
   providerFromDocument,
   titleFromDocument,
 } from "@app/components/assistant/conversation/RetrievalAction";
-import { RenderMessageMarkdown } from "@app/components/assistant/RenderMessageMarkdown";
+import { RenderMessageMarkdown, PlotBlock } from "@app/components/assistant/RenderMessageMarkdown";
 import { useEventSource } from "@app/hooks/useEventSource";
 import { useSubmitFunction } from "@app/lib/client/utils";
 
@@ -440,6 +440,9 @@ export function AgentMessage({
                     lastHoveredReference={lastHoveredReference}
                   />
                 )}
+                <PlotBlock
+                    codeSnippet={agentMessage.content}
+                />
               </>
             )}
           </div>

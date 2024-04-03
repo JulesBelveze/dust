@@ -787,7 +787,6 @@ export function PlotBlock({
     /\.exec\s*\(.*\)/,      // .exec (e.g. child_process.exec) with any content
   ]
   const codeMatches = codeSnippet.match(extractCodeRegex);
-  let result = null;
 
   if (codeMatches) {
     const isSafeToRun = code => !unsafePatterns.some(
@@ -798,7 +797,7 @@ export function PlotBlock({
     if (isSafeToRun(codeToEvaluate)) {
       try {
         importPlotly(() => {
-          result = eval(codeToEvaluate);
+          eval(codeToEvaluate);
         })
       } catch (error) {
         console.error('Error evaluating code:', error);
@@ -807,5 +806,5 @@ export function PlotBlock({
       console.error('Unsafe code')
     }
   }
-  return result ? <div>{result}</div> : null;
+  return <div id="agent-chart"></div>;
 }
