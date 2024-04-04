@@ -39,6 +39,7 @@ import {
   titleFromDocument,
 } from "@app/components/assistant/conversation/RetrievalAction";
 import { RenderMessageMarkdown } from "@app/components/assistant/RenderMessageMarkdown";
+import { PlotBlock } from "@app/components/assistant/RenderCodePlot";
 import { useEventSource } from "@app/hooks/useEventSource";
 import { useSubmitFunction } from "@app/lib/client/utils";
 
@@ -439,6 +440,9 @@ export function AgentMessage({
                     activeReferences={activeReferences}
                     lastHoveredReference={lastHoveredReference}
                   />
+                )}
+                {agentMessage.status === "succeeded" && (
+                  <PlotBlock agentMessageContent={agentMessage.content}/>
                 )}
               </>
             )}
