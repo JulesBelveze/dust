@@ -1,123 +1,67 @@
-import React, {useEffect, useState} from 'react';
+import React from 'react'
 
-const PLOTLY_SRC = 'https://cdn.plot.ly/plotly-latest.min.js';
-const D3_SRC = 'https://d3js.org/d3.v6.min.js';
+const PLOTLY_SRC = 'https://cdn.plot.ly/plotly-latest.min.js'
+const D3_SRC = 'https://d3js.org/d3.v6.min.js'
 
-function importScript(src: string, onLoad: () => void) {
-    if ((src === PLOTLY_SRC && window.Plotly) || (src === D3_SRC && window.d3)) {
-        onLoad();
-        return;
+function detectLibrary(codeSnippet: string): 'plotly' | 'd3' {
+    if (codeSnippet.includes('Plotly.newPlot') || codeSnippet.includes('Plotly.react')) {
+        return 'plotly'
+    } else if (codeSnippet.includes('d3.select') || codeSnippet.includes('d3.csv')) {
+        return 'd3'
     }
-
-    const existingScript = document.querySelector(`script[src="${src}"]`);
-    if (existingScript) {
-        existingScript.addEventListener('load', onLoad);
-        return;
-    }
-
-    const script = document.createElement('script');
-    script.src = src;
-    script.addEventListener('load', onLoad);
-    document.head.appendChild(script);
+    throw new Error('Could not detect library from code snippet.')
 }
 
-function executeCode(codeSnippet: string, plotId: string) {
-    const extractCodeRegex = /(?<=```javascript\n)[\s\S]*?(?=\n```)/;
-    const codeMatches = codeSnippet.match(extractCodeRegex);
-
-    if (codeMatches) {
-        const codeToEvaluate = codeMatches[0].replace(/'agent-chart'/g, `'${plotId}'`);
-        const library = detectLibrary(codeToEvaluate);
-        const onLoad = () => {
-            if (library === 'plotly') {
-                executePlotlyCode(codeToEvaluate, plotId);
-            } else if (library === 'd3') {
-                executeD3Code(codeToEvaluate, plotId);
-            }
-        };
-
-        if (library === 'plotly') {
-            importScript(PLOTLY_SRC, onLoad);
-        } else if (library === 'd3') {
-            importScript(D3_SRC, onLoad);
-        }
-    } else {
-        console.error('Cannot identify a code snippet.');
-    }
-}
-
-function detectLibrary(code: string): 'plotly' | 'd3' {
-    if (code.includes('Plotly.newPlot') || code.includes('Plotly.react')) {
-        return 'plotly';
-    } else if (code.includes('d3.select') || code.includes('d3.csv')) {
-        return 'd3';
-    }
-    throw new Error('Could not detect library from code snippet.');
-}
-
-function executeD3Code(code: string, plotId: string) {
-    const iframe = document.createElement('iframe');
-    iframe.style.width = '100%';
-    iframe.style.height = '100%'; // Set the height to accommodate the chart
-    iframe.sandbox = 'allow-scripts';
-    document.getElementById(plotId)?.appendChild(iframe);
-
-    const svgWidth = 500;
-    const svgHeight = 500;
-
-    iframe.srcdoc = `
+function generateIframeTemplate(codeSnippet: string, libSrc: string, hookComponent: string) {
+    return `
         <!DOCTYPE html>
         <html>
         <head>
-            <title>D3 Chart</title>
-            <script src="${D3_SRC}"></script>
+            <script src="${libSrc}"></script>
         </head>
         <body>
-            <svg width="${svgWidth}" height="${svgHeight}" id="agent-chart"></svg>
-            <script>
-                ${code}
-            </script>
-        </body>
-        </html>
-    `;
-}
-
-function executePlotlyCode(codeSnippet: string, plotId: string) {
-    const iframe = document.createElement('iframe');
-    iframe.style.width = '100%';
-    iframe.style.height = '100%';
-    iframe.sandbox = 'allow-scripts';
-    document.getElementById(plotId)?.appendChild(iframe);
-
-    iframe.srcdoc = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Plotly Chart</title>
-            <script src="${PLOTLY_SRC}"></script>
-        </head>
-        <body>
-            <div id="${plotId}"></div>
+            ${hookComponent}
             <script>
                 ${codeSnippet}
             </script>
         </body>
         </html>
-    `;
+    `
+}
+
+function generateIframeContentD3(codeSnippet: string) {
+    const svgWidth = 500
+    const svgHeight = 500
+    const hookComponent = `<svg width="${svgWidth}px" height="${svgHeight}px" id="agent-chart"></svg>`
+    return generateIframeTemplate(codeSnippet, D3_SRC, hookComponent)
+}
+
+function generateIframeContentPlotly(codeSnippet: string) {
+    const hookComponent = `<div id="agent-chart"></div>`
+    return generateIframeTemplate(codeSnippet, PLOTLY_SRC, hookComponent)
+}
+
+function generateIframeContent(agentMessageContent: string) {
+    const extractCodeRegex = /(?<=```javascript\n)[\s\S]*?(?=\n```)/
+    const codeMatches = agentMessageContent.match(extractCodeRegex)
+
+    if (codeMatches) {
+        const codeSnippet = codeMatches[0]
+        const library = detectLibrary(codeSnippet)
+        if (library === 'plotly') {
+            return generateIframeContentPlotly(codeSnippet)
+        } else if (library === 'd3') {
+            return generateIframeContentD3(codeSnippet)
+        }
+    }
 }
 
 export function PlotBlock({
-    codeSnippet
+    agentMessageContent
 }: {
-    codeSnippet: string
+    agentMessageContent: string
 }) {
-    const [plotId, setPlotId] = useState('');
-
-    useEffect(() => {
-        const uniquePlotId = `plot-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-        setPlotId(uniquePlotId);
-        executeCode(codeSnippet, uniquePlotId);
-    }, [codeSnippet]);
-
-    return <div id={plotId} style={{width: '100%', height: '500px'}}/>;
+    const iframeContent = generateIframeContent(agentMessageContent)
+    return iframeContent ?
+        <iframe style={{marginTop: "16px", width: "100%", height: "500px"}} sandbox="allow-scripts" srcDoc={iframeContent}></iframe> : null
 }
