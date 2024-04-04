@@ -20,35 +20,37 @@ function importPlotly(onLoad: () => void) {
     document.head.appendChild(script);
 }
 
-let plotCounter = 0; // Keep track of the number of plots to generate unique IDs
-
-const isCodeSafe = (code: string) => {
-    const unsafePatterns = [
-        /process\.env/,
-        /module\.exports\s*=.*/,
-        /\.exec\s*\(.*\)/,
-    ];
-    return !unsafePatterns.some(pattern => pattern.test(code));
-};
-
 function executePlotlyCode(codeSnippet: string, plotId: string) {
     const extractCodeRegex = /(?<=```javascript\n)[\s\S]*?(?=\n```)/;
     const codeMatches = codeSnippet.match(extractCodeRegex);
 
-    if (codeMatches && isCodeSafe(codeMatches[0])) {
+    if (codeMatches) {
+        // Prepare the code to be executed, including replacing 'agent-chart' with the unique plotId
         const codeToEvaluate = codeMatches[0].replace(/'agent-chart'/g, `'${plotId}'`);
 
         importPlotly(() => {
-            const element = document.getElementById(plotId);
-            if (element) {
-                eval(codeToEvaluate);
-            } else {
-                setTimeout(() => {
-                    if (document.getElementById(plotId)) {
-                        eval(codeToEvaluate);
-                    }
-                }, 100);
-            }
+            const iframe = document.createElement('iframe');
+            iframe.style.width = '100%';
+            iframe.style.height = '100%';
+            iframe.sandbox = 'allow-scripts'; // Apply sandbox restrictions
+            document.getElementById(plotId)?.appendChild(iframe);
+
+            // Set the iframe's content, including Plotly and the code to execute
+            iframe.srcdoc = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Plotly Chart</title>
+                    <script src="${PLOTLY_SRC}"></script>
+                </head>
+                <body>
+                    <div id="${plotId}"></div>
+                    <script>
+                        ${codeToEvaluate}
+                    </script>
+                </body>
+                </html>
+            `;
         });
     } else {
         console.error('Unsafe code');
@@ -56,17 +58,17 @@ function executePlotlyCode(codeSnippet: string, plotId: string) {
 }
 
 export function PlotBlock({
-    codeSnippet
-}: {
+                              codeSnippet
+                          }: {
     codeSnippet: string
 }) {
     const [plotId, setPlotId] = useState('');
 
     useEffect(() => {
-        const uniquePlotId = `plot-${plotCounter++}`;
+        const uniquePlotId = `plot-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
         setPlotId(uniquePlotId);
         executePlotlyCode(codeSnippet, uniquePlotId);
     }, [codeSnippet]);
 
-    return <div id={plotId} />;
+    return <div id={plotId} style={{ width: '100%', height: '500px' }} />;
 }
