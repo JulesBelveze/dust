@@ -1,25 +1,58 @@
-function importPlotly(onLoad: () => void) {
-    // Make sure we only import plotly once
-    const PLOTLY_SRC = 'https://cdn.plot.ly/plotly-latest.min.js';
-    const existingScript = document.querySelector(`script[src="${PLOTLY_SRC}"]`);
+import React, { useEffect, useState } from 'react';
 
-    if (window.Plotly || existingScript) {
-        if (window.Plotly) {
-            onLoad();
-        } else if (existingScript && existingScript.onload == null) {
-            existingScript.onload = () => {
-                onLoad();
-            };
-        }
+const PLOTLY_SRC = 'https://cdn.plot.ly/plotly-latest.min.js';
+
+function importPlotly(onLoad: () => void) {
+    if (window.Plotly) {
+        onLoad();
+        return;
+    }
+
+    const existingScript = document.querySelector(`script[src="${PLOTLY_SRC}"]`);
+    if (existingScript) {
+        existingScript.addEventListener('load', onLoad);
         return;
     }
 
     const script = document.createElement('script');
     script.src = PLOTLY_SRC;
-    script.onload = () => {
-        onLoad();
-    };
+    script.addEventListener('load', onLoad);
     document.head.appendChild(script);
+}
+
+let plotCounter = 0; // Keep track of the number of plots to generate unique IDs
+
+const isCodeSafe = (code: string) => {
+    const unsafePatterns = [
+        /process\.env/,
+        /module\.exports\s*=.*/,
+        /\.exec\s*\(.*\)/,
+    ];
+    return !unsafePatterns.some(pattern => pattern.test(code));
+};
+
+function executePlotlyCode(codeSnippet: string, plotId: string) {
+    const extractCodeRegex = /(?<=```javascript\n)[\s\S]*?(?=\n```)/;
+    const codeMatches = codeSnippet.match(extractCodeRegex);
+
+    if (codeMatches && isCodeSafe(codeMatches[0])) {
+        const codeToEvaluate = codeMatches[0].replace(/'agent-chart'/g, `'${plotId}'`);
+
+        importPlotly(() => {
+            const element = document.getElementById(plotId);
+            if (element) {
+                eval(codeToEvaluate);
+            } else {
+                setTimeout(() => {
+                    if (document.getElementById(plotId)) {
+                        eval(codeToEvaluate);
+                    }
+                }, 100);
+            }
+        });
+    } else {
+        console.error('Unsafe code');
+    }
 }
 
 export function PlotBlock({
@@ -27,31 +60,13 @@ export function PlotBlock({
 }: {
     codeSnippet: string
 }) {
-    const extractCodeRegex = /(?<=```javascript\n)[\s\S]*?(?=\n```)/;
-    const unsafePatterns = [
-        /process\.env/,         // accessing process.env
-        /module\.exports\s*=.*/,  // module.exports assignment
-        /\.exec\s*\(.*\)/,      // .exec (e.g. child_process.exec) with any content
-    ]
-    const codeMatches = codeSnippet.match(extractCodeRegex);
+    const [plotId, setPlotId] = useState('');
 
-    if (codeMatches) {
-        const isSafeToRun = (code: string) => !unsafePatterns.some(
-            pattern => pattern.test(code)
-        );
-        const codeToEvaluate = codeMatches[0]
+    useEffect(() => {
+        const uniquePlotId = `plot-${plotCounter++}`;
+        setPlotId(uniquePlotId);
+        executePlotlyCode(codeSnippet, uniquePlotId);
+    }, [codeSnippet]);
 
-        if (isSafeToRun(codeToEvaluate)) {
-            try {
-                importPlotly(() => {
-                    eval(codeToEvaluate);
-                })
-            } catch (error) {
-                console.error('Error evaluating code:', error);
-            }
-        } else {
-            console.error('Unsafe code')
-        }
-    }
-    return <div id="agent-chart"></div>;
+    return <div id={plotId} />;
 }
