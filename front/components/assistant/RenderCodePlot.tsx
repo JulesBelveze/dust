@@ -1,15 +1,29 @@
 function importPlotly(onLoad: () => void) {
+    // Make sure we only import plotly once
+    const PLOTLY_SRC = 'https://cdn.plot.ly/plotly-latest.min.js';
+    const existingScript = document.querySelector(`script[src="${PLOTLY_SRC}"]`);
+
+    if (window.Plotly || existingScript) {
+        if (window.Plotly) {
+            onLoad();
+        } else if (existingScript && existingScript.onload == null) {
+            existingScript.onload = () => {
+                onLoad();
+            };
+        }
+        return;
+    }
+
     const script = document.createElement('script');
-    script.src = 'https://cdn.plot.ly/plotly-latest.min.js';
+    script.src = PLOTLY_SRC;
     script.onload = () => {
-        console.log('Plotly has been loaded');
-        onLoad?.();
+        onLoad();
     };
     document.head.appendChild(script);
 }
 
 export function PlotBlock({
-  codeSnippet
+    codeSnippet
 }: {
     codeSnippet: string
 }) {
